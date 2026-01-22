@@ -158,6 +158,14 @@ jobs:
             sed -i 's/android-minSdkVersion" value="[^"]*"/android-minSdkVersion" value="24"/' "$xmlFile"
           fi
 
+
+      - name: Debug - show config.xml
+        shell: bash
+        run: |
+          echo "===== app/config.xml ====="
+          sed -n '1,120p' app/config.xml
+          echo "=========================="
+
       - name: Add Android platform
         shell: bash
         run: |
