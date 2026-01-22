@@ -89,19 +89,14 @@ jobs:
         run: |
           cat > upsert_status.sh << 'BASH'
           #!/usr/bin/env bash
-          UID_VAL="$1"; JOB_VAL="$2"; STAT="$3"; PROG="$4"; NOTE="$5"
-          # إنشاء ملف الحالة
-          echo "{\"uid\":\"$UID_VAL\",\"jobId\":\"$JOB_VAL\",\"status\":\"$STAT\",\"progress\":$PROG,\"notes\":\"$NOTE\",\"updatedAt\":\"$(date -u +%FT%TZ)\"}" > status_update.json
-          
-          # إرسال لـ Supabase مع طباعة النتيجة للتأكد
-          curl -v -X POST "${{ secrets.SUPABASE_URL }}/storage/v1/object/outputs/$UID_VAL/$JOB_VAL/status.json" \
+          # تحديث الحالة مباشرة باستخدام الـ Secrets من GitHub
+          curl -X POST "${{ secrets.SUPABASE_URL }}/storage/v1/object/outputs/$1/$2/status.json" \
           -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE }}" \
-          -H "Content-Type: application/json" \
-          -H "x-upsert: true" \
-          --data-binary @status_update.json
+          -H "Content-Type: application/json" -H "x-upsert: true" \
+          --data "{\"uid\":\"$1\",\"jobId\":\"$2\",\"status\":\"$3\",\"progress\":$4,\"notes\":\"$5\",\"updatedAt\":\"$(date -u +%FT%TZ)\"}"
           BASH
           chmod +x upsert_status.sh
-
+          
       - name: Download and Extract Assets (The WinRAR Fix)
         shell: bash
         run: |
