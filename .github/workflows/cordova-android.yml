@@ -90,11 +90,15 @@ jobs:
           cat > upsert_status.sh << 'BASH'
           #!/usr/bin/env bash
           UID_VAL="$1"; JOB_VAL="$2"; STAT="$3"; PROG="$4"; NOTE="$5"
-          TMP=$(mktemp)
-          jq -n --arg s "$STAT" --argjson p "$PROG" --arg n "$NOTE" --arg uid "$UID_VAL" --arg job "$JOB_VAL" --arg now "$(date -u +%FT%TZ)" \
-          '{uid:$uid, jobId:$job, status:$s, progress:$p, updatedAt:$now, notes:$n}' > "$TMP"
-          curl -sS -X POST "$SUPABASE_URL/storage/v1/object/outputs/$UID_VAL/$JOB_VAL/status.json" \
-          -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE" -H "Content-Type: application/json" -H "x-upsert: true" --data-binary @"$TMP" > /dev/null || true
+          # إنشاء ملف الحالة
+          echo "{\"uid\":\"$UID_VAL\",\"jobId\":\"$JOB_VAL\",\"status\":\"$STAT\",\"progress\":$PROG,\"notes\":\"$NOTE\",\"updatedAt\":\"$(date -u +%FT%TZ)\"}" > status_update.json
+          
+          # إرسال لـ Supabase مع طباعة النتيجة للتأكد
+          curl -v -X POST "${{ secrets.SUPABASE_URL }}/storage/v1/object/outputs/$UID_VAL/$JOB_VAL/status.json" \
+          -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE }}" \
+          -H "Content-Type: application/json" \
+          -H "x-upsert: true" \
+          --data-binary @status_update.json
           BASH
           chmod +x upsert_status.sh
 
