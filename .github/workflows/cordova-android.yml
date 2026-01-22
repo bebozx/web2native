@@ -46,6 +46,22 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        
+      - name: Install Gradle 8.7 (fix Cordova + Gradle 9 issue)
+        shell: bash
+        run: |
+          GRADLE_VERSION=8.7
+          curl -sSLo gradle.zip "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip"
+          sudo unzip -q gradle.zip -d /opt/gradle
+          echo "/opt/gradle/gradle-${GRADLE_VERSION}/bin" >> $GITHUB_PATH
+          gradle -v
+
+          
+      - name: Force Gradle 8.x for Cordova Android
+        shell: bash
+        run: |
+          echo "ORG_GRADLE_PROJECT_cdvGradleVersion=8.7" >> $GITHUB_ENV
+
 
       - name: Accept Android licenses & install build tools
         shell: bash
