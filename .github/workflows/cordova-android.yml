@@ -93,14 +93,29 @@ jobs:
           BASH
           chmod +x upsert_status.sh
 
-      - name: Download and Extract Web Files
+      - name: Download and Extract Web Files (Smart Mode)
         shell: bash
         run: |
-          ./upsert_status.sh "$UID" "$JOB_ID" "downloading" 20 "Downloading and extracting ZIP"
+          ./upsert_status.sh "$UID" "$JOB_ID" "downloading" 20 "Downloading and extracting assets"
           mkdir -p temp_zip
-          curl -L "$ZIP_URL" -o web.zip
-          unzip -o web.zip -d temp_zip
-          # التأكد من المسار: إذا كان الـ ZIP يحتوي مجلداً واحداً بداخله، ننتقل لداخله
+          
+          echo "Downloading from: $ZIP_URL"
+          curl -L "$ZIP_URL" -o web_assets
+          
+          # تثبيت unrar و 7zip لدعم ملفات WinRAR
+          sudo apt-get update && sudo apt-get install -y unrar p7zip-full
+
+          # محاولة فك الضغط بـ 7zip أولاً لأنه الأشمل
+          if 7z x web_assets -otemp_zip -y; then
+             echo "✅ Extracted successfully using 7zip"
+          elif unzip -o web_assets -d temp_zip; then
+             echo "✅ Extracted successfully using unzip"
+          else
+             echo "⚠️ Extraction failed, treating as a raw file"
+             mv web_assets temp_zip/index.html
+          fi
+
+          # معالجة المجلدات المتداخلة (Nested Folders)
           if [ $(ls -1 temp_zip | wc -l) -eq 1 ] && [ -d temp_zip/* ]; then
              echo "WEB_DIR=$(ls -d $PWD/temp_zip/*)" >> $GITHUB_ENV
           else
@@ -114,12 +129,14 @@ jobs:
           cordova create app "$APP_ID" "$APP_NAME"
           cd app
           cordova platform add android@12
-          # تنظيف مجلد www ونسخ الملفات الجديدة
+          
+          # تنظيف مجلد www ونسخ الملفات
           rm -rf www/*
           cp -R $WEB_DIR/. www/
-          # إصدار أندرويد الأدنى وإعدادات الوصول
+          
+          # إعدادات config.xml لضمان الوصول للإنترنت و Supabase
           xmlFile=config.xml
-          sed -i 's#</widget>#  <preference name="android-minSdkVersion" value="24"/>\n  <access origin="*" />\n  <allow-navigation href="*" />\n</widget>#' "$xmlFile"
+          sed -i 's#</widget>#  <preference name="android-minSdkVersion" value="24"/>\n  <access origin="*" />\n  <allow-navigation href="*" />\n  <preference name="Scheme" value="https" />\n  <preference name="Hostname" value="localhost" />\n</widget>#' "$xmlFile"
 
       - name: Build APK (Debug)
         shell: bash
@@ -150,4 +167,4 @@ jobs:
             -H "x-upsert: true" --data-binary @"$AAB_PATH"
 
       - name: Complete
-        run: ./upsert_status.sh "$UID" "$JOB_ID" "done" 100 "Success! Files uploaded."
+        run: ./upsert_status.sh "$UID" "$JOB_ID" "done" 100 "Success! Build finished."
