@@ -172,5 +172,10 @@ jobs:
             -H "x-upsert: true" --data-binary @"$AAB_PATH"
 
       - name: Complete
-        run: ./upsert_status.sh "$UID" "$JOB_ID" "done" 100 "Build successful! Check Artifacts or Supabase."
-        
+        if: always() # سيتم تنفيذ هذا السطر سواء نجح الرفع لـ Supabase أو فشل
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            ./upsert_status.sh "$UID" "$JOB_ID" "done" 100 "Build successful! Download your files now."
+          else
+            ./upsert_status.sh "$UID" "$JOB_ID" "failed" 0 "Build failed. Check GitHub Actions logs."
+          fi
