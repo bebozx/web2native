@@ -4,20 +4,20 @@ on:
   workflow_dispatch:
     inputs:
       uid:
-        description: "Supabase user id (من create-job)"
+        description: "Supabase user id"
         required: true
       job_id:
-        description: "Job ID (من create-job)"
+        description: "Job ID"
         required: true
       zip_url:
-        description: "Signed ZIP URL (لو سيبته فاضي هنقراه من status.json)"
+        description: "Signed ZIP URL"
         required: false
       app_name:
         description: "اسم التطبيق"
         required: false
         default: "My App"
       app_id:
-        description: "App ID (مثال: com.web2app.generated)"
+        description: "App ID"
         required: false
         default: "com.web2app.generated"
 
@@ -46,6 +46,12 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         
+      - name: Install Android Build Tools (Your Original Logic)
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "build-tools;33.0.2"
+
       - name: Install Gradle 8.7
         shell: bash
         run: |
@@ -53,8 +59,8 @@ jobs:
           curl -sSLo gradle.zip "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip"
           sudo unzip -q gradle.zip -d /opt/gradle
           echo "/opt/gradle/gradle-${GRADLE_VERSION}/bin" >> $GITHUB_PATH
-          
-      - name: Force Gradle 8.x for Cordova
+
+      - name: Force Gradle 8.x
         run: echo "ORG_GRADLE_PROJECT_cdvGradleVersion=8.7" >> $GITHUB_ENV
 
       - name: Install Cordova
@@ -76,7 +82,6 @@ jobs:
             STATUS_URL="$SUPABASE_URL/storage/v1/object/authenticated/outputs/${{ github.event.inputs.uid }}/${{ github.event.inputs.job_id }}/status.json"
             curl -sS -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE" "$STATUS_URL" -o status.json
             ZIP_URL=$(jq -r '.zipUrl // empty' status.json)
-            if [ -z "$ZIP_URL" ]; then echo "zipUrl not found"; exit 1; fi
             echo "ZIP_URL=$ZIP_URL" >> $GITHUB_ENV
           fi
 
@@ -93,29 +98,21 @@ jobs:
           BASH
           chmod +x upsert_status.sh
 
-      - name: Download and Extract Web Files (Smart Mode)
+      - name: Download and Extract Assets (The WinRAR Fix)
         shell: bash
         run: |
-          ./upsert_status.sh "$UID" "$JOB_ID" "downloading" 20 "Downloading and extracting assets"
+          ./upsert_status.sh "$UID" "$JOB_ID" "downloading" 20 "Downloading assets"
           mkdir -p temp_zip
-          
-          echo "Downloading from: $ZIP_URL"
           curl -L "$ZIP_URL" -o web_assets
-          
-          # تثبيت unrar و 7zip لدعم ملفات WinRAR
           sudo apt-get update && sudo apt-get install -y unrar p7zip-full
-
-          # محاولة فك الضغط بـ 7zip أولاً لأنه الأشمل
+          
+          # فك الضغط بـ 7zip للتعامل مع كل الصيغ
           if 7z x web_assets -otemp_zip -y; then
-             echo "✅ Extracted successfully using 7zip"
-          elif unzip -o web_assets -d temp_zip; then
-             echo "✅ Extracted successfully using unzip"
+             echo "Extracted with 7z"
           else
-             echo "⚠️ Extraction failed, treating as a raw file"
-             mv web_assets temp_zip/index.html
+             unzip -o web_assets -d temp_zip || mv web_assets temp_zip/index.html
           fi
 
-          # معالجة المجلدات المتداخلة (Nested Folders)
           if [ $(ls -1 temp_zip | wc -l) -eq 1 ] && [ -d temp_zip/* ]; then
              echo "WEB_DIR=$(ls -d $PWD/temp_zip/*)" >> $GITHUB_ENV
           else
@@ -129,19 +126,17 @@ jobs:
           cordova create app "$APP_ID" "$APP_NAME"
           cd app
           cordova platform add android@12
-          
-          # تنظيف مجلد www ونسخ الملفات
           rm -rf www/*
           cp -R $WEB_DIR/. www/
           
-          # إعدادات config.xml لضمان الوصول للإنترنت و Supabase
+          # تعديل config.xml وإصلاح الـ Localhost
           xmlFile=config.xml
           sed -i 's#</widget>#  <preference name="android-minSdkVersion" value="24"/>\n  <access origin="*" />\n  <allow-navigation href="*" />\n  <preference name="Scheme" value="https" />\n  <preference name="Hostname" value="localhost" />\n</widget>#' "$xmlFile"
 
       - name: Build APK (Debug)
         shell: bash
         run: |
-          ./upsert_status.sh "$UID" "$JOB_ID" "building_apk" 60 "Building Android APK"
+          ./upsert_status.sh "$UID" "$JOB_ID" "building_apk" 60 "Building APK"
           cd app
           cordova build android --debug -- --packageType=apk
           APK=$(ls platforms/android/app/build/outputs/apk/debug/*.apk | head -n1)
@@ -158,7 +153,7 @@ jobs:
       - name: Upload to Supabase
         shell: bash
         run: |
-          ./upsert_status.sh "$UID" "$JOB_ID" "uploading" 90 "Uploading to Supabase Storage"
+          ./upsert_status.sh "$UID" "$JOB_ID" "uploading" 90 "Uploading results"
           curl -sS -X POST "$SUPABASE_URL/storage/v1/object/outputs/$UID/$JOB_ID/app-debug.apk" \
             -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE" -H "Content-Type: application/vnd.android.package-archive" \
             -H "x-upsert: true" --data-binary @"$APK_PATH"
@@ -167,4 +162,4 @@ jobs:
             -H "x-upsert: true" --data-binary @"$AAB_PATH"
 
       - name: Complete
-        run: ./upsert_status.sh "$UID" "$JOB_ID" "done" 100 "Success! Build finished."
+        run: ./upsert_status.sh "$UID" "$JOB_ID" "done" 100 "Build successful"
