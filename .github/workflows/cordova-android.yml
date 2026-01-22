@@ -1,0 +1,208 @@
+
+name: Cordova Android Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      uid:
+        description: "Supabase user id (من create-job)"
+        required: true
+      job_id:
+        description: "Job ID (من create-job)"
+        required: true
+      zip_url:
+        description: "Signed ZIP URL (لو سيبته فاضي هنقراه من status.json)"
+        required: false
+      app_name:
+        description: "اسم التطبيق"
+        required: false
+        default: "My App"
+      app_id:
+        description: "App ID (مثال: com.web2app.generated)"
+        required: false
+        default: "com.web2app.generated"
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE: ${{ secrets.SUPABASE_SERVICE_ROLE }}
+
+    steps:
+      - name: Checkout (optional)
+        uses: actions/checkout@v4
+
+      - name: Ensure tooling
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android licenses & install build tools
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Install Cordova
+        run: npm i -g cordova@12
+
+      - name: Resolve inputs (zip_url may be empty)
+        id: inputs
+        shell: bash
+        run: |
+          echo "UID=${{ github.event.inputs.uid }}" >> $GITHUB_ENV
+          echo "JOB_ID=${{ github.event.inputs.job_id }}" >> $GITHUB_ENV
+          echo "APP_NAME=${{ github.event.inputs.app_name || 'My App' }}" >> $GITHUB_ENV
+          echo "APP_ID=${{ github.event.inputs.app_id || 'com.web2app.generated' }}" >> $GITHUB_ENV
+
+          ZIP_URL_INPUT="${{ github.event.inputs.zip_url }}"
+          if [ -n "$ZIP_URL_INPUT" ]; then
+            echo "ZIP_URL=$ZIP_URL_INPUT" >> $GITHUB_ENV
+          else
+            # لو zip_url مش متبعت، هنقراه من status.json اللي كتبه create-job
+            echo "Fetching zipUrl from status.json ..."
+            STATUS_URL="$SUPABASE_URL/storage/v1/object/authenticated/outputs/${{ github.event.inputs.uid }}/${{ github.event.inputs.job_id }}/status.json"
+            # اقرأ status.json ب Authorization service_role
+            curl -sS -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE" "$STATUS_URL" -o status.json
+            cat status.json
+            ZIP_URL=$(jq -r '.zipUrl // empty' status.json)
+            if [ -z "$ZIP_URL" ]; then
+              echo "zipUrl not found in status.json"; exit 1
+            fi
+            echo "ZIP_URL=$ZIP_URL" >> $GITHUB_ENV
+          fi
+
+      - name: Helper - function to update status.json (progress)
+        id: helpers
+        shell: bash
+        run: |
+          cat > upsert_status.sh << 'BASH'
+          #!/usr/bin/env bash
+          set -e
+          UID="$1"
+          JOB="$2"
+          STATUS="$3"
+          PROG="$4"
+          NOTE="$5"
+
+          TMP=$(mktemp)
+          jq -n --arg s "$STATUS" --argjson p "$PROG" --arg n "$NOTE" \
+            --arg uid "$UID" --arg job "$JOB" \
+            --arg now "$(date -u +%FT%TZ)" \
+            '{uid:$uid, jobId:$job, status:$s, progress:$p, updatedAt:$now, notes:$n}' > "$TMP"
+
+          curl -sS -X POST \
+            "$SUPABASE_URL/storage/v1/object/outputs/$UID/$JOB/status.json" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE" \
+            -H "Content-Type: application/json" \
+            -H "x-upsert: true" \
+            --data-binary @"$TMP" > /dev/null || true
+          rm -f "$TMP"
+          BASH
+          chmod +x upsert_status.sh
+
+      - name: Update status -> downloading sources
+        run: ./upsert_status.sh "$UID" "$JOB_ID" "downloading" 15 "Downloading web.zip"
+
+      - name: Download web.zip
+        shell: bash
+        run: |
+          mkdir -p work && cd work
+          echo "Downloading: $ZIP_URL"
+          curl -L "$ZIP_URL" -o web.zip
+          unzip -q web.zip -d websrc || (echo "ZIP might be flat; trying fallback" && mkdir -p websrc && unzip -q web.zip -d websrc || true)
+          echo "WEB_DIR=$PWD/websrc" >> $GITHUB_ENV
+
+      - name: Update status -> creating cordova project
+        run: ./upsert_status.sh "$UID" "$JOB_ID" "preparing" 30 "Creating Cordova project"
+
+      - name: Create Cordova project & copy web
+        shell: bash
+        run: |
+          cordova create app "$APP_ID" "$APP_NAME"
+          rm -rf app/www/*
+          cp -a "$WEB_DIR"/. app/www/ || true
+          # config.xml: تأكيد minSdkVersion=24
+          xmlFile=app/config.xml
+          if ! grep -q 'android-minSdkVersion' "$xmlFile"; then
+            sed -i 's#</widget>#  <preference name="android-minSdkVersion" value="24"/>\n</widget>#' "$xmlFile"
+          else
+            sed -i 's/android-minSdkVersion" value="[^"]*"/android-minSdkVersion" value="24"/' "$xmlFile"
+          fi
+
+      - name: Add Android platform
+        shell: bash
+        run: |
+          cd app
+          cordova platform add android@12
+
+      - name: Update status -> building APK (debug)
+        run: ./upsert_status.sh "$UID" "$JOB_ID" "building_apk" 60 "Building APK debug"
+
+      - name: Build APK (debug)
+        shell: bash
+        run: |
+          cd app
+          cordova build android --debug -- --packageType=apk
+
+      - name: Update status -> building AAB (release)
+        run: ./upsert_status.sh "$UID" "$JOB_ID" "building_aab" 80 "Building AAB release (unsigned)"
+
+      - name: Build AAB (release, unsigned)
+        shell: bash
+        run: |
+          cd app
+          cordova build android --release -- --packageType=bundle
+
+      - name: Collect artifacts
+        id: artifacts
+        shell: bash
+        run: |
+          APK=$(echo app/platforms/android/app/build/outputs/apk/debug/*.apk | tr ' ' '\n' | head -n1)
+          AAB=$(echo app/platforms/android/app/build/outputs/bundle/release/*.aab | tr ' ' '\n' | head -n1)
+          echo "APK_PATH=$APK" >> $GITHUB_ENV
+          echo "AAB_PATH=$AAB" >> $GITHUB_ENV
+          ls -la "$APK" "$AAB"
+
+      - name: Upload artifacts to Actions
+        uses: actions/upload-artifact@v4
+        with:
+          name: cordova-android-${{ env.JOB_ID }}
+          path: |
+            ${{ env.APK_PATH }}
+            ${{ env.AAB_PATH }}
+
+      - name: Update status -> uploading outputs to Supabase
+        run: ./upsert_status.sh "$UID" "$JOB_ID" "uploading" 90 "Uploading outputs to Supabase"
+
+      - name: Upload APK & AAB to Supabase Storage
+        shell: bash
+        run: |
+          # APK
+          curl -sS -X POST \
+            "$SUPABASE_URL/storage/v1/object/outputs/$UID/$JOB_ID/app-debug.apk" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE" \
+            -H "Content-Type: application/vnd.android.package-archive" \
+            -H "x-upsert: true" \
+            --data-binary @"$APK_PATH" > /dev/null
+
+          # AAB (غير موقّع حالياً)
+          curl -sS -X POST \
+            "$SUPABASE_URL/storage/v1/object/outputs/$UID/$JOB_ID/app-release.aab" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE" \
+            -H "Content-Type: application/octet-stream" \
+            -H "x-upsert: true" \
+            --data-binary @"$AAB_PATH" > /dev/null
+
+      - name: Finish status -> done
+        run: ./upsert_status.sh "$UID" "$JOB_ID" "done" 100 "Build complete: APK (free) + AAB (unsigned)"
