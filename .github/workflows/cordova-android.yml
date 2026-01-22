@@ -205,4 +205,5 @@ jobs:
             --data-binary @"$AAB_PATH" > /dev/null
 
       - name: Finish status -> done
-        run: ./upsert_status.sh "$UID" "$JOB_ID" "done" 100 "Build complete: APK (free) + AAB (unsigned)"
+        run: |
+             ./upsert_status.sh "$UID" "$JOB_ID" "done" 100 "Build complete: APK (free) + AAB (unsigned)"
