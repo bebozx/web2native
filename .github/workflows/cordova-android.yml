@@ -46,11 +46,12 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         
-      - name: Install Android Build Tools
+      - name: Install Android Build Tools (The Missing Fix)
         shell: bash
         run: |
           yes | sdkmanager --licenses || true
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+          # أعدنا تثبيت النسخ المطلوبة بالضبط لـ Cordova
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "build-tools;33.0.2"
 
       - name: Install Gradle 8.7
         shell: bash
@@ -96,14 +97,13 @@ jobs:
           cd app
           cordova platform add android@12
           
-          # 🔥 إضافة الإضافات اللازمة للميكروفون والكاميرا 🔥
+          # الإضافات المطلوبة
           cordova plugin add cordova-plugin-media-capture
           cordova plugin add cordova-plugin-android-permissions
           
           rm -rf www/*
           cp -R $WEB_DIR/. www/
           
-          # 🛠️ تعديل config.xml لإضافة التصاريح ونظام الـ Scheme 🛠️
           xmlFile=config.xml
           sed -i 's#</widget>#  <preference name="android-minSdkVersion" value="24"/>\n  <access origin="*" />\n  <allow-navigation href="*" />\n  <preference name="Scheme" value="https" />\n  <preference name="Hostname" value="localhost" />\n  <platform name="android">\n    <config-file target="AndroidManifest.xml" parent="/*">\n      <uses-permission android:name="android.permission.RECORD_AUDIO" />\n      <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n      <uses-permission android:name="android.permission.CAMERA" />\n    </config-file>\n  </platform>\n</widget>#' "$xmlFile"
 
@@ -123,7 +123,7 @@ jobs:
           AAB=$(ls platforms/android/app/build/outputs/bundle/release/*.aab | head -n1)
           echo "AAB_PATH=$PWD/$AAB" >> $GITHUB_ENV
 
-      - name: Upload Artifacts to GitHub (Crucial for the Download Button)
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: My-App-Package-${{ github.event.inputs.job_id }}
