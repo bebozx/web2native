@@ -104,11 +104,11 @@ jobs:
           cp -R $WEB_DIR/. www/
           
           xmlFile=config.xml
-          # إضافة الـ Namespace للـ Android
+          # 1. تعريف الـ Namespace (ضروري جداً لعمل الـ Permissions)
           sed -i 's/<widget/<widget xmlns:android="http:\/\/schemas.android.com\/apk\/res\/android"/' "$xmlFile"
           
-          # حقن الإعدادات اللازمة لتشغيل الميديا داخل الـ WebView
-          sed -i 's#</widget>#  <preference name="android-minSdkVersion" value="24"/>\n  <access origin="*" />\n  <allow-navigation href="*" />\n  <preference name="Scheme" value="https" />\n  <preference name="Hostname" value="localhost" />\n  <preference name="AllowInlineMediaPlayback" value="true" />\n  <preference name="MediaPlaybackRequiresUserAction" value="false" />\n  <platform name="android">\n    <config-file target="AndroidManifest.xml" parent="/*">\n      <uses-permission android:name="android.permission.RECORD_AUDIO" />\n      <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n      <uses-permission android:name="android.permission.CAMERA" />\n    </config-file>\n  </platform>\n</widget>#' "$xmlFile"
+          # 2. حقن الإعدادات الجديدة (هنا نضع السطرين)
+          sed -i 's#</widget>#  <preference name="android-minSdkVersion" value="24"/>\n  <access origin="*" />\n  <allow-navigation href="*" />\n  <preference name="Scheme" value="https" />\n  <preference name="Hostname" value="localhost" />\n  <preference name="AndroidInsecureFileModeEnabled" value="false" />\n  <preference name="AllowInlineMediaPlayback" value="true" />\n  <platform name="android">\n    <config-file target="AndroidManifest.xml" parent="/*">\n      <uses-permission android:name="android.permission.RECORD_AUDIO" />\n      <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n      <uses-permission android:name="android.permission.CAMERA" />\n    </config-file>\n  </platform>\n</widget>#' "$xmlFile"
 
       - name: Build APK (Debug)
         shell: bash
