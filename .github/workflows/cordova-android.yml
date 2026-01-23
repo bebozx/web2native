@@ -46,11 +46,10 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         
-      - name: Install Android Build Tools (The Missing Fix)
+      - name: Install Android Build Tools
         shell: bash
         run: |
           yes | sdkmanager --licenses || true
-          # أعدنا تثبيت النسخ المطلوبة بالضبط لـ Cordova
           sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "build-tools;33.0.2"
 
       - name: Install Gradle 8.7
@@ -90,27 +89,27 @@ jobs:
              echo "WEB_DIR=$PWD/temp_zip" >> $GITHUB_ENV
           fi
 
-      - name: Create Cordova Project (Microphone & Camera Surgery - FIXED)
+      - name: Create Cordova Project (The Final Success Surgery)
         shell: bash
         run: |
           cordova create app "$APP_ID" "$APP_NAME"
           cd app
           cordova platform add android@12
           
-          # الإضافات المطلوبة
-          cordova plugin add cordova-plugin-media-capture
+          # إضافة الإضافات المطلوبة لحل مشاكل الـ WebView
           cordova plugin add cordova-plugin-android-permissions
+          cordova plugin add cordova-plugin-media-capture
           
           rm -rf www/*
           cp -R $WEB_DIR/. www/
           
           xmlFile=config.xml
-          # 1. إضافة تعريف الـ android namespace في رأس الملف (عشان الـ uses-permission تشتغل)
+          # إضافة الـ Namespace للـ Android
           sed -i 's/<widget/<widget xmlns:android="http:\/\/schemas.android.com\/apk\/res\/android"/' "$xmlFile"
           
-          # 2. إضافة التفضيلات والتصاريح
-          sed -i 's#</widget>#  <preference name="android-minSdkVersion" value="24"/>\n  <access origin="*" />\n  <allow-navigation href="*" />\n  <preference name="Scheme" value="https" />\n  <preference name="Hostname" value="localhost" />\n  <platform name="android">\n    <config-file target="AndroidManifest.xml" parent="/*">\n      <uses-permission android:name="android.permission.RECORD_AUDIO" />\n      <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n      <uses-permission android:name="android.permission.CAMERA" />\n    </config-file>\n  </platform>\n</widget>#' "$xmlFile"
-     
+          # حقن الإعدادات اللازمة لتشغيل الميديا داخل الـ WebView
+          sed -i 's#</widget>#  <preference name="android-minSdkVersion" value="24"/>\n  <access origin="*" />\n  <allow-navigation href="*" />\n  <preference name="Scheme" value="https" />\n  <preference name="Hostname" value="localhost" />\n  <preference name="AllowInlineMediaPlayback" value="true" />\n  <preference name="MediaPlaybackRequiresUserAction" value="false" />\n  <platform name="android">\n    <config-file target="AndroidManifest.xml" parent="/*">\n      <uses-permission android:name="android.permission.RECORD_AUDIO" />\n      <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n      <uses-permission android:name="android.permission.CAMERA" />\n    </config-file>\n  </platform>\n</widget>#' "$xmlFile"
+
       - name: Build APK (Debug)
         shell: bash
         run: |
