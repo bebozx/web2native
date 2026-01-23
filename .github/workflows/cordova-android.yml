@@ -90,7 +90,7 @@ jobs:
              echo "WEB_DIR=$PWD/temp_zip" >> $GITHUB_ENV
           fi
 
-      - name: Create Cordova Project (Microphone & Camera Surgery)
+      - name: Create Cordova Project (Microphone & Camera Surgery - FIXED)
         shell: bash
         run: |
           cordova create app "$APP_ID" "$APP_NAME"
@@ -105,8 +105,12 @@ jobs:
           cp -R $WEB_DIR/. www/
           
           xmlFile=config.xml
+          # 1. إضافة تعريف الـ android namespace في رأس الملف (عشان الـ uses-permission تشتغل)
+          sed -i 's/<widget/<widget xmlns:android="http:\/\/schemas.android.com\/apk\/res\/android"/' "$xmlFile"
+          
+          # 2. إضافة التفضيلات والتصاريح
           sed -i 's#</widget>#  <preference name="android-minSdkVersion" value="24"/>\n  <access origin="*" />\n  <allow-navigation href="*" />\n  <preference name="Scheme" value="https" />\n  <preference name="Hostname" value="localhost" />\n  <platform name="android">\n    <config-file target="AndroidManifest.xml" parent="/*">\n      <uses-permission android:name="android.permission.RECORD_AUDIO" />\n      <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n      <uses-permission android:name="android.permission.CAMERA" />\n    </config-file>\n  </platform>\n</widget>#' "$xmlFile"
-
+     
       - name: Build APK (Debug)
         shell: bash
         run: |
