@@ -1,25 +1,17 @@
 name: Cordova Android Build
 
 on:
-  workflow_dispatch:
+ workflow_dispatch:
     inputs:
-      uid:
-        description: "Supabase user id"
-        required: true
-      job_id:
-        description: "Job ID"
-        required: true
-      zip_url:
-        description: "Signed ZIP URL"
-        required: false
-      app_name:
-        description: "اسم التطبيق"
-        required: false
-        default: "My App"
-      app_id:
-        description: "App ID"
-        required: false
-        default: "com.web2app.generated"
+      uid: { required: true }
+      job_id: { required: true }
+      zip_url: { required: true }
+      app_name: { required: false, default: "My App" }
+      build_type: { required: false, default: "apk" }
+      ks_path: { required: false }
+      ks_alias: { required: false }
+      ks_pass: { required: false }
+      key_pass: { required: false }
 
 jobs:
   build-android:
