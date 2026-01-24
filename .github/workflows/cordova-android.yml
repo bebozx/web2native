@@ -132,3 +132,11 @@ jobs:
           path: |
             ${{ env.APK_PATH }}
             ${{ env.AAB_PATH }}
+
+      - name: Update Supabase with APK Link
+        run: |
+          curl -X PATCH "${{ secrets.SUPABASE_URL }}/rest/v1/profiles?id=eq.${{ github.event.client_payload.user_id }}" \
+          -H "apikey: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+          -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+          -H "Content-Type: application/json" \
+          -d '{"last_apk_url": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"}'
