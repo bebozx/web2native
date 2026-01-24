@@ -133,10 +133,21 @@ jobs:
             ${{ env.APK_PATH }}
             ${{ env.AAB_PATH }}
 
-      - name: Update Supabase with APK Link
+      - name: Upload APK to Supabase Storage
+        shell: bash
         run: |
+          # رفع الـ APK لـ Storage برابط مباشر
+          curl -X POST "${{ secrets.SUPABASE_URL }}/storage/v1/object/outputs/${{ github.event.inputs.uid }}/app-release.apk" \
+          -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+          -H "Content-Type: application/vnd.android.package-archive" \
+          --data-binary @"${{ env.APK_PATH }}"
+
+      - name: Update Profile with Direct Link
+        shell: bash
+        run: |
+          DIRECT_URL="${{ secrets.SUPABASE_URL }}/storage/v1/object/public/outputs/${{ github.event.inputs.uid }}/app-release.apk"
           curl -X PATCH "${{ secrets.SUPABASE_URL }}/rest/v1/profiles?id=eq.${{ github.event.inputs.uid }}" \
           -H "apikey: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
           -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
           -H "Content-Type: application/json" \
-          -d '{"last_apk_url": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"}'
+          -d "{\"last_apk_url\": \"$DIRECT_URL\"}"
