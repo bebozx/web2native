@@ -100,6 +100,19 @@ jobs:
           
           # إضافة إعدادات "الجسر" داخل config.xml
           sed -i 's#</widget>#  <preference name="AndroidInsecureFileModeEnabled" value="true"/>\n  <preference name="AllowInlineMediaPlayback" value="true" />\n  <preference name="MediaPlaybackRequiresUserAction" value="false" />\n  <platform name="android">\n    <config-file target="AndroidManifest.xml" parent="/*">\n      <uses-permission android:name="android.permission.RECORD_AUDIO" />\n      <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n      <uses-permission android:name="android.permission.CAMERA" />\n      <uses-permission android:name="android.permission.VIDEO_CAPTURE" />\n    </config-file>\n  </platform>\n</widget>#' "$xmlFile"
+      
+      - name: Add App Icon
+        shell: bash
+        run: |
+          if [ -f "icon.png" ]; then
+            cp icon.png app/res/icon.png
+            xmlFile="app/config.xml"
+            # إضافة سطر الأيقونة داخل ملف الإعدادات
+            sed -i '/<\/platform>/i \        <icon src="res/icon.png" />' "$xmlFile"
+            echo "✅ Icon added to Cordova project"
+          else
+            echo "⚠️ No icon.png found in root"
+          fi
      
       - name: Build APK (Debug)
         shell: bash
