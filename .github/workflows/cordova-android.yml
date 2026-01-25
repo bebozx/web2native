@@ -101,17 +101,24 @@ jobs:
           # إضافة إعدادات "الجسر" داخل config.xml
           sed -i 's#</widget>#  <preference name="AndroidInsecureFileModeEnabled" value="true"/>\n  <preference name="AllowInlineMediaPlayback" value="true" />\n  <preference name="MediaPlaybackRequiresUserAction" value="false" />\n  <platform name="android">\n    <config-file target="AndroidManifest.xml" parent="/*">\n      <uses-permission android:name="android.permission.RECORD_AUDIO" />\n      <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n      <uses-permission android:name="android.permission.CAMERA" />\n      <uses-permission android:name="android.permission.VIDEO_CAPTURE" />\n    </config-file>\n  </platform>\n</widget>#' "$xmlFile"
       
-      - name: Add App Icon
+      - name: Inject Icon into Cordova
         shell: bash
         run: |
-          if [ -f "icon.png" ]; then
-            cp icon.png app/res/icon.png
-            xmlFile="app/config.xml"
-            # إضافة سطر الأيقونة داخل ملف الإعدادات
-            sed -i '/<\/platform>/i \        <icon src="res/icon.png" />' "$xmlFile"
-            echo "✅ Icon added to Cordova project"
+          # البحث عن أي ملف يبدأ بكلمة icon بأي امتداد (png, PNG, jpg)
+          ICON_FILE=$(find . -maxdepth 1 -iname "icon.png" -o -iname "icon.jpg" | head -n 1)
+          
+          if [ -n "$ICON_FILE" ]; then
+            echo "✅ Found icon file: $ICON_FILE"
+            mkdir -p app/res/icon/android
+            cp "$ICON_FILE" app/res/icon/android/icon.png
+            
+            # حقن السطر في config.xml
+            sed -i '/<platform name="android">/a \        <icon src="res/icon/android/icon.png" />' app/config.xml
+            echo "✅ Icon injected into config.xml"
           else
-            echo "⚠️ No icon.png found in root"
+            echo "❌ Still cannot find icon.png. Files in root are:"
+            ls -F
+            exit 1 # عشان يوقف البناء ونعرف ليه مش شايفه
           fi
      
       - name: Build APK (Debug)
