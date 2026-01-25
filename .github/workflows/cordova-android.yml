@@ -104,21 +104,21 @@ jobs:
       - name: Inject Icon into Cordova
         shell: bash
         run: |
-          # البحث عن أي ملف يبدأ بكلمة icon بأي امتداد (png, PNG, jpg)
-          ICON_FILE=$(find . -maxdepth 1 -iname "icon.png" -o -iname "icon.jpg" | head -n 1)
+          # البحث في كل المجلدات عن أي ملف اسمه icon.png
+          ICON_FILE=$(find . -name "icon.png" | head -n 1)
           
           if [ -n "$ICON_FILE" ]; then
-            echo "✅ Found icon file: $ICON_FILE"
+            echo "✅ Found icon file at: $ICON_FILE"
             mkdir -p app/res/icon/android
             cp "$ICON_FILE" app/res/icon/android/icon.png
             
             # حقن السطر في config.xml
             sed -i '/<platform name="android">/a \        <icon src="res/icon/android/icon.png" />' app/config.xml
-            echo "✅ Icon injected into config.xml"
+            echo "✅ Icon injected successfully"
           else
-            echo "❌ Still cannot find icon.png. Files in root are:"
-            ls -F
-            exit 1 # عشان يوقف البناء ونعرف ليه مش شايفه
+            echo "❌ Critical Error: icon.png is NOT in the repository at all!"
+            echo "Please upload icon.png to your GitHub repository."
+            exit 1
           fi
      
       - name: Build APK (Debug)
