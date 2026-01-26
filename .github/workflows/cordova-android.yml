@@ -168,3 +168,13 @@ jobs:
           -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
           -H "Content-Type: application/json" \
           -d "{\"last_apk_url\": \"$APK_URL\", \"last_aab_url\": \"$AAB_URL\", \"build_status\": \"completed\"}"
+
+      - name: Report Error to User
+        if: failure()
+        shell: bash
+        run: |
+          curl -X PATCH "${{ secrets.SUPABASE_URL }}/rest/v1/profiles?id=eq.${{ github.event.inputs.uid }}" \
+          -H "apikey: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+          -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+          -H "Content-Type: application/json" \
+          -d "{\"build_status\": \"failed\"}"
