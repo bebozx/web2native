@@ -116,9 +116,8 @@ jobs:
             sed -i '/<platform name="android">/a \        <icon src="res/icon/android/icon.png" />' app/config.xml
             echo "✅ Icon injected successfully"
           else
-            echo "❌ Critical Error: icon.png is NOT in the repository at all!"
-            echo "Please upload icon.png to your GitHub repository."
-            exit 1
+            # في حالة عدم وجود الملف، يتم التجاوز بدلاً من إيقاف البناء
+            echo "⚠️ Warning: icon.png not found. Proceeding with default Cordova icon."
           fi
      
       - name: Build APK (Debug)
