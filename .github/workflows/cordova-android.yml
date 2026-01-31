@@ -119,7 +119,17 @@ jobs:
             # في حالة عدم وجود الملف، يتم التجاوز بدلاً من إيقاف البناء
             echo "⚠️ Warning: icon.png not found. Proceeding with default Cordova icon."
           fi
-
+          
+      - name: Inject Permissions into AndroidManifest
+        shell: bash
+        run: |
+          cd app/platforms/android/app/src/main
+          # حقن أذونات الميكروفون في ملف الـ Manifest
+          sed -i '/<uses-sdk/a \    <uses-permission android:name="android.permission.RECORD_AUDIO" />' AndroidManifest.xml
+          sed -i '/<uses-sdk/a \    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />' AndroidManifest.xml
+          
+          echo "✅ Microphone permissions injected into Manifest"
+      
       - name: Force WebView to Stay In-App
         shell: bash
         run: |
