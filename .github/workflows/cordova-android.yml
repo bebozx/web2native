@@ -119,6 +119,21 @@ jobs:
             # في حالة عدم وجود الملف، يتم التجاوز بدلاً من إيقاف البناء
             echo "⚠️ Warning: icon.png not found. Proceeding with default Cordova icon."
           fi
+
+      - name: Force WebView to Stay In-App
+        shell: bash
+        run: |
+          cd app
+          # السماح لجميع الروابط بالفتح داخلياً
+          sed -i '/<\/widget>/i \    <access origin="*" />' config.xml
+          sed -i '/<\/widget>/i \    <allow-navigation href="*" />' config.xml
+          sed -i '/<\/widget>/i \    <allow-intent href="http://*/*" />' config.xml
+          sed -i '/<\/widget>/i \    <allow-intent href="https://*/*" />' config.xml
+          
+          # إضافة التفضيل الذي يمنع الخروج للمتصفح
+          sed -i '/<\/widget>/i \    <preference name="StayInApp" value="true" />' config.xml
+          
+          echo "✅ WebView settings injected into config.xml"    
      
       - name: Build APK (Debug)
         shell: bash
