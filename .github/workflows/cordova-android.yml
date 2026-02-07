@@ -91,6 +91,10 @@ jobs:
           # تثبيت الإضافات التي تعمل كجسر للصلاحيات
           cordova plugin add cordova-plugin-android-permissions
           cordova plugin add cordova-plugin-media-capture
+          # إضافة هذه الأسطر تحت قسم "Create Cordova Project"
+          cordova plugin add cordova-plugin-camera
+          cordova plugin add cordova-plugin-geolocation
+          cordova plugin add cordova-plugin-splashscreen # اختياري لشكل احترافي عند الفتح
           
           rm -rf www/*
           cp -R $WEB_DIR/. www/
@@ -127,7 +131,8 @@ jobs:
           # حقن أذونات الميكروفون في ملف الـ Manifest
           sed -i '/<uses-sdk/a \    <uses-permission android:name="android.permission.RECORD_AUDIO" />' AndroidManifest.xml
           sed -i '/<uses-sdk/a \    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />' AndroidManifest.xml
-          
+          sed -i '/<uses-sdk/a \    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />' AndroidManifest.xml
+          sed -i '/<uses-sdk/a \    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />' AndroidManifest.xml
           echo "✅ Microphone permissions injected into Manifest"
       
       - name: Force WebView to Stay In-App
